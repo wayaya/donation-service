@@ -6,6 +6,13 @@ SPDX-License-Identifier: Apache-2.0
 
 package rest
 
+// comm http header
+const (
+	HeaderAccept          = "Accept"
+	HeaderContentType     = "Content-Type"
+	HeaderApplicationJSON = "application/json"
+)
+
 // user source
 const (
 	SourceWechat = "wx"
@@ -91,4 +98,11 @@ const (
 const (
 	QrCodeSize = 120       // qr code size
 	QRContent  = "长按识别二维码" // qr code content
+)
+
+// define redis cmd
+const (
+	RedisSet      = "SET"
+	RedisGet      = "GET"
+	RedisExpireAt = "EXPIREAT"
 )

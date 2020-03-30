@@ -86,3 +86,20 @@ LocalFileSystem: https://127.0.0.1:8888/
 ImageCfg:
     BackgroundPath: bg.png
     FontPath: SourceHanSansCN-Regular.ttf
+
+################################################################################
+#
+# block chain configuration
+#
+################################################################################
+BCAdapterCfg:
+    Address: https://boxdev.arxanchain.com
+
+################################################################################
+#
+# redis configuration
+#
+################################################################################
+Redis:
+    Addr: 192.168.20.90:6379
+    Auth:
