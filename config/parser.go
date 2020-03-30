@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
-
+	
 	"github.com/spf13/viper"
 )
 
@@ -20,22 +20,22 @@ var (
 )
 
 // defaultCfgPath default conigure file path
-const defaultCfgPath = "/etc/csiabb/"
+const defaultCfgPath = "/home/dongsibei/go/src/donation-service/sampleconfig/"
 
 // initConfig Init configuration and return the viper instance
 func initConfig(configName string) *viper.Viper {
 	config := viper.New()
 	initViper(config, configName)
-
+	
 	//get the environment prefix name from configName
 	prefix := strings.ToUpper(configName)
-
+	
 	// for environment variables
 	config.SetEnvPrefix(prefix)
 	config.AutomaticEnv()
 	replacer := strings.NewReplacer(".", "_")
 	config.SetEnvKeyReplacer(replacer)
-
+	
 	err := config.ReadInConfig()
 	if err != nil {
 		logger.Errorf("Error reading configuration: %s, make sure your config file exists or format is correct.", err.Error())
@@ -82,20 +82,20 @@ func initViper(v *viper.Viper, configName string) error {
 		//
 		// CWD
 		addConfigPath(v, "./")
-
+		
 		// And finally, the default path
 		if dirExists(defaultCfgPath) {
 			logger.Debugf("adding [%s] to config path", defaultCfgPath)
 			addConfigPath(v, defaultCfgPath)
 		}
 	}
-
+	
 	// Now set the configuration file.
 	if v != nil {
 		v.SetConfigName(configName)
 	} else {
 		viper.SetConfigName(configName)
 	}
-
+	
 	return nil
 }

@@ -8,7 +8,7 @@ package context
 
 import (
 	"fmt"
-
+	
 	"github.com/csiabb/donation-service/common/log"
 	"github.com/csiabb/donation-service/components/aliyun"
 	"github.com/csiabb/donation-service/components/image"
@@ -46,35 +46,35 @@ func (c *Context) Init() error {
 		logger.Errorf("Initialize failed, configure is nil")
 		return fmt.Errorf("configure is nil")
 	}
-	fmt.Println("init config:", c.Config)
-	logger.Debugf("Initialization configure: %v", c.Config)
-
-	err := c.initStorage()
+	logger.Info("init config:%v", c.Config)
+	logger.Info("Initialization configure: %v", c.Config)
+	
+	err := c.initStorage() // 初始化数据库
 	if nil != err {
 		logger.Errorf("Initialize database storage failed, %v", err)
 		return err
 	}
-
+	
 	err = c.initALiYunServices()
 	if nil != err {
 		logger.Errorf("Initialize aliyun services failed, %v", err)
 		return err
 	}
-
+	
 	err = c.initWXBackend()
 	if nil != err {
 		logger.Errorf("Initialize wechat backend failed, %v", err)
 		return err
 	}
-
+	
 	err = c.initImageBackend()
 	if nil != err {
 		logger.Errorf("Initialize image backend failed, %v", err)
 		return err
 	}
-
+	
 	logger.Infof("Initialize context success.")
-
+	
 	return nil
 }
 
@@ -83,14 +83,14 @@ func (c *Context) initStorage() error {
 		logger.Infof("database is disabled")
 		return nil
 	}
-
+	
 	var err error
 	c.DBStorage, err = impl.NewDBBackend(&c.Config.Database)
 	if nil != err {
 		logger.Errorf("New database backend error, %v", err)
 		return err
 	}
-
+	
 	return nil
 }
 
@@ -101,7 +101,7 @@ func (c *Context) initWXBackend() error {
 		logger.Errorf("Failed new wx client: %v", err)
 		return err
 	}
-
+	
 	return nil
 }
 
@@ -112,7 +112,7 @@ func (c *Context) initALiYunServices() error {
 		logger.Errorf("New aliyun services error, %v", err)
 		return err
 	}
-
+	
 	return nil
 }
 
@@ -123,6 +123,6 @@ func (c *Context) initImageBackend() error {
 		logger.Errorf("New aliyun services error, %v", err)
 		return err
 	}
-
+	
 	return nil
 }
