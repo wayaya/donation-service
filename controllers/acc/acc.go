@@ -23,7 +23,7 @@ import (
 func (h *RestHandler) LoginWXApp(c *gin.Context) {
 	logger.Info("got login request")
 
-	req := &structs.LoginRequest{}
+	req := &structs.LoginRequest{} // 请求对象
 	if err := c.BindJSON(req); err != nil {
 		e := fmt.Errorf("invalid parameters, %s", err.Error())
 		logger.Error(e)
@@ -70,7 +70,7 @@ func (h *RestHandler) LoginWXApp(c *gin.Context) {
 		}
 	}
 
-	id := utils.GenerateUUID()
+	id := utils.GenerateUUID() // 产生唯一用户id
 	bcResp, err := h.srvcContext.IBCAdapter.Register(id)
 	if err != nil {
 		e := fmt.Errorf("register on block chain failed, %v", err)
