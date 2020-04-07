@@ -19,6 +19,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gomodule/redigo/redis"
 	"github.com/shopspring/decimal"
+
+	wlog "github.com/csiabb/donation-service/common/log"
 )
 
 const (
@@ -347,7 +349,8 @@ func (h *RestHandler) QueryFundsDetail(c *gin.Context) {
 
 // ReceiveSupplies defines the request of received supplies
 func (h *RestHandler) ReceiveSupplies(c *gin.Context) {
-	logger.Info("got receive supplies request")
+	wlog.Debugf("物资发布请求参数: %+v", wlog.ReaderToJSON(&c.Request.Body))
+	logger.Debug("got receive supplies request")
 
 	req := &structs.ReceiveSuppliesRequest{}
 	if err := c.BindJSON(req); err != nil {
@@ -356,6 +359,7 @@ func (h *RestHandler) ReceiveSupplies(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, rest.ErrorResponse(rest.ParseRequestParamsError, e.Error()))
 		return
 	}
+	wlog.Debugf("物资发布业务参数:%+v", wlog.ToJson(req))
 	logger.Debugf("request params, %v", req)
 
 	if req.PubType != rest.PubTypeDonate && req.PubType != rest.PubTypeDistribute && req.PubType != rest.PubTypeReceive {
@@ -365,7 +369,7 @@ func (h *RestHandler) ReceiveSupplies(c *gin.Context) {
 		return
 	}
 
-	ps := make([]*models.PubSupplies, 0)
+	ps := make([]*models.PubSupplies, 0) // 创建一个空数组
 	addrs := make([]*models.Address, 0)
 	images := make([]*models.Image, 0)
 	bcJSONs := make([]*string, 0)
@@ -451,15 +455,37 @@ func (h *RestHandler) ReceiveSupplies(c *gin.Context) {
 		bcJSONs = append(bcJSONs, &bcJSON)
 	}
 
+	// 以捐赠者uid为key进行查询
+	// select *from account where uid = 'xxx'
+	wlog.Debugf("用户uid:%+v", wlog.ToJson(req.GetUIDBySuppliesReq()))
 	acc, err := h.srvcContext.DBStorage.QueryAccount("", req.GetUIDBySuppliesReq())
 	if err != nil {
+		wlog.Errorf("数据库查询失败:%+v", err)
 		e := fmt.Errorf("query user error, %s", err.Error())
 		logger.Error(e)
 		c.JSON(http.StatusInternalServerError, rest.ErrorResponse(rest.DatabaseOperationFailed, e.Error()))
 		return
 	}
+	wlog.Debugf("从数据库中查询到用户信息:%+v", wlog.ToJson(acc))
 
-	tx := h.srvcContext.DBStorage.GetDBTransaction()
+	tx := h.srvcContext.DBStorage.GetDBTransaction() // 获取数据库事务
+
+	/* 插入用户捐赠物资
+	insert into pub_supplies (
+		id, way_bill_num, uid, donor_name,
+		user_type, aid_uid, aid_name, target_uid,
+		target_name, pub_type, name, number,
+		unit, tx_id, remark, block_type,
+		block_height, block_time, created_at, updated_at
+	) values (
+		'supplies_id_bb', '700074134800', 'uid_normal_1', 'donor_name1',
+		'normal', '', 'aid_name_1', 'uid_charity_4',
+		'target_name1', 'donate', '3M N95口罩', 100,
+		'个', '', '', '',
+		0, 0, now(), now()
+	);
+	*/
+	wlog.Debugf("保存捐赠物资:%+v", wlog.ToJson(ps))
 	err = h.srvcContext.DBStorage.CreateSupplies(tx, ps)
 	if err != nil {
 		h.srvcContext.DBStorage.DBTransactionRollback(tx)
@@ -469,6 +495,15 @@ func (h *RestHandler) ReceiveSupplies(c *gin.Context) {
 		return
 	}
 
+	wlog.Debugf("保存捐赠地址:%+v", wlog.ToJson(addrs))
+	/* 将地址写入数据库
+	INSERT INTO address
+	VALUES (
+		'aid_charity_4', 'uid_charity_4', 'reg', '中国',
+		'北京', '北京市', '东城区', '56号楼3层',
+		NULL, '2020-03-03 14:51:24+08', '2020-03-03 14:51:29+08', '2020-03-03 14:51:32+08'
+	);
+	*/
 	err = h.srvcContext.DBStorage.CreateAddresses(tx, addrs)
 	if err != nil {
 		h.srvcContext.DBStorage.DBTransactionRollback(tx)
@@ -478,6 +513,18 @@ func (h *RestHandler) ReceiveSupplies(c *gin.Context) {
 		return
 	}
 
+	/* 将图片写入数据库
+	INSERT INTO image(
+		"id", "related_id", "type", "url",
+		"hash", "format", "created_at", "updated_at",
+		"deleted_at"
+	)VALUES (
+		'iid_charity_1', 'uid_charity_1', 'charity', 'https://boxdev.arxanchain.com/csiabb-donation.png',
+		NULL, NULL, '2020-03-04 17:25:03+08', '2020-03-04 17:25:06+08',
+		'2020-03-04 17:25:10+08'
+	);
+	*/
+	wlog.Debugf("写入图片:%+v", wlog.ToJson(images))
 	err = h.srvcContext.DBStorage.CreateImages(tx, images)
 	if err != nil {
 		h.srvcContext.DBStorage.DBTransactionRollback(tx)
@@ -487,6 +534,7 @@ func (h *RestHandler) ReceiveSupplies(c *gin.Context) {
 		return
 	}
 
+	wlog.Debugf("执行上链操作:%+v", wlog.ToJson(bcJSONs))
 	bcResults, err := h.srvcContext.IBCAdapter.Pubs(acc.DID, bcJSONs)
 	if err != nil {
 		h.srvcContext.DBStorage.DBTransactionRollback(tx)
@@ -496,6 +544,7 @@ func (h *RestHandler) ReceiveSupplies(c *gin.Context) {
 		return
 	}
 
+	wlog.Debugf("上链结果:%+v", wlog.ToJson(bcResults))
 	err = h.srvcContext.DBStorage.UpdateSuppliesList(tx, ps, bcResults)
 	if err != nil {
 		h.srvcContext.DBStorage.DBTransactionRollback(tx)
@@ -505,27 +554,36 @@ func (h *RestHandler) ReceiveSupplies(c *gin.Context) {
 		return
 	}
 
+	wlog.Debug("提交数据库事务")
 	h.srvcContext.DBStorage.DBTransactionCommit(tx)
+	wlog.Debug("捐赠物资保存成功")
 
+	/*  等待区块链信息
 	bcMap := make(map[string]bool)
 	reqTime := time.Now().Unix()
+	wlog.Debugf("时间戳:%+v", reqTime)
 
 	for {
-		time.Sleep(time.Duration(1) * time.Second)
+		time.Sleep(time.Duration(1) * time.Second) // 休息一秒
 
 		respTime := time.Now().Unix()
-		if respTime-reqTime >= timeoutOfOneSingleReq*3 {
+		st := respTime - reqTime
+		wlog.Debugf("间隔时间:%+v", st)
+		if st >= timeoutOfOneSingleReq*3 {
 			c.JSON(http.StatusRequestTimeout, rest.ErrorResponse(rest.BlockChainCallBackTimeout, "block chain call back timeout"))
 			logger.Infof("block chain call back timeout")
 			return
 		}
 
 		done := true
+		wlog.Debugf("检测上链返回结果:%+v", wlog.ToJson(bcResults))
 		for _, v := range bcResults {
 			bcID := v.Data.ID
+			wlog.Debugf("上链id:%+v", wlog.ToJson(bcID))
 			_, err := bcCallBackInfoInRedis(h.srvcContext.RedisCli, bcID)
 
 			if err != nil {
+				wlog.Error(err)
 				if !bcMap[bcID] {
 					done = false
 				}
@@ -550,6 +608,20 @@ func (h *RestHandler) ReceiveSupplies(c *gin.Context) {
 			return
 		}
 	}
+	//*/
+
+	/* 基石链信息
+	{
+		"blockchain": "cornerstone-chain",
+		"id": "did:axn:da-fc3f4d21-609e-4855-802a-f880e9a600ed",
+		"block_num": 3322,
+		"tx_id": "kandkalakna9ejdlalajahbabzgzfaftqub",
+		"time": 1584932344
+	}*/
+
+	c.JSON(http.StatusOK, rest.SuccessResponse(nil))
+	wlog.Debug("完成上链")
+	logger.Infof("response receive funds success.")
 }
 
 // QuerySupplies defines the request of query supplies
