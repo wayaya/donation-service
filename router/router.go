@@ -137,7 +137,7 @@ func (r *Router) SetupRouter() *gin.Engine {
 		apiPrefix.Use(middleware.RequestResponseLogger())
 
 		// account
-		apiPrefix.POST(urlAccLoginWXApp, r.accHandler.LoginWXApp)
+		apiPrefix.POST(urlAccLoginWXApp, r.accHandler.LoginWXApp) // 微信登录
 
 		// block chain
 		apiPrefix.POST(urlBCCallBack, r.bcHandler.BlockChainCallBack)
