@@ -8,6 +8,7 @@ package acc
 
 import (
 	"fmt"
+	wlog "github.com/csiabb/donation-service/common/log"
 	"net/http"
 
 	"github.com/csiabb/donation-service/common/rest"
@@ -22,29 +23,35 @@ import (
 // LoginWXApp defines the user login
 func (h *RestHandler) LoginWXApp(c *gin.Context) {
 	logger.Info("got login request")
+	wlog.Debugf("微信登录请求参数:%+v", wlog.ReaderToJSON(&c.Request.Body))
 
-	req := &structs.LoginRequest{}
+	req := &structs.LoginRequest{} // 请求对象
 	if err := c.BindJSON(req); err != nil {
-		e := fmt.Errorf("invalid parameters: %s", err.Error())
+		e := fmt.Errorf("invalid parameters, %s", err.Error())
 		logger.Error(e)
 		c.JSON(http.StatusBadRequest, rest.ErrorResponse(rest.ParseRequestParamsError, e.Error()))
 		return
 	}
-	logger.Debugf("request params, %v", req)
+	wlog.Debugf("微信登录业务参数:%+v", wlog.ToJson(req))
+	logger.Debugf("request params, %+v", req)
 
+	// code 参数验证
 	if req.CertCode == "" || (req.ID <= 0 && req.AppID == "") {
 		logger.Error("invalid params cert code, id or app id")
 		c.JSON(http.StatusBadRequest, rest.ErrorResponse(rest.InvalidParamsErrCode, "invalid params cert code, id or app id"))
 		return
 	}
+	wlog.Debugf("code参数验证:%+v", wlog.ToJson(req.CertCode))
 
 	wxApp := h.srvcContext.Config.WXCfg
 	wxCredentials, err := h.srvcContext.WXClient.WXLogin(wxApp.AppID, wxApp.Secret, req.CertCode)
 	if err != nil {
+		wlog.Errorf("获取微信详情出错 %+v", err)
 		logger.Errorf("get user info by call wx service return %+v", err)
 		c.JSON(http.StatusBadRequest, rest.ErrorResponse(rest.WXLoginFailed, err.Error()))
 		return
 	}
+	wlog.Debugf("获取微信详情 %+v", wlog.ToJson(wxCredentials))
 	logger.Debugf("get user info by call wx service return %+v", wxCredentials)
 
 	if wxCredentials.OpenID == "" {
@@ -53,7 +60,7 @@ func (h *RestHandler) LoginWXApp(c *gin.Context) {
 		return
 	}
 
-	user, err := h.srvcContext.DBStorage.CheckAccount(wxCredentials.OpenID)
+	user, err := h.srvcContext.DBStorage.QueryAccount(wxCredentials.OpenID, "")
 	if err != nil {
 		if err != gorm.ErrRecordNotFound {
 			logger.Errorf("query account return err %v", err)
@@ -69,9 +76,20 @@ func (h *RestHandler) LoginWXApp(c *gin.Context) {
 			return
 		}
 	}
+	wlog.Debugf("查询用户 %+v", wlog.ToJson(user))
+
+	id := utils.GenerateUUID() // 产生唯一用户id
+	bcResp, err := h.srvcContext.IBCAdapter.Register(id)
+	if err != nil {
+		e := fmt.Errorf("register on block chain failed, %v", err)
+		logger.Error(e)
+		c.JSON(http.StatusInternalServerError, rest.ErrorResponse(rest.InternalServerFailure, e.Error()))
+		return
+	}
+	wlog.Debugf("产生用户id %+v", wlog.ToJson(bcResp))
 
 	acc := &models.Account{
-		ID:       utils.GenerateUUID(),
+		ID:       id,
 		Access:   req.Access,
 		Password: req.Password,
 		NickName: req.Nickname,
@@ -81,9 +99,11 @@ func (h *RestHandler) LoginWXApp(c *gin.Context) {
 		OpenID:   wxCredentials.OpenID,
 		AppID:    wxApp.AppID,
 		UnionID:  wxCredentials.UnionID,
+		DID:      bcResp.Data.ID,
 	}
-	err = h.srvcContext.DBStorage.CreateAccount(acc)
 
+	wlog.Debugf("插入用户 %+v", wlog.ToJson(acc))
+	err = h.srvcContext.DBStorage.CreateAccount(acc)
 	if err != nil {
 		e := fmt.Errorf("create account error, %v", err)
 		logger.Error(e.Error())

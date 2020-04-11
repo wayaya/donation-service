@@ -11,6 +11,7 @@ import (
 
 	"github.com/csiabb/donation-service/common/log"
 	"github.com/csiabb/donation-service/components/aliyun"
+	"github.com/csiabb/donation-service/components/bcadapter"
 	"github.com/csiabb/donation-service/components/database"
 	"github.com/csiabb/donation-service/components/image"
 	"github.com/csiabb/donation-service/components/wx"
@@ -34,12 +35,20 @@ type SrvcCfg struct {
 	ALiYunCfg       aliyun.Config
 	ImageCfg        image.Config
 	LocalFileSystem string
+	BCAdapterCfg    bcadapter.Config
+	Redis           RedisCfg
 }
 
 // ServerGeneralCfg general configure of service
 type ServerGeneralCfg struct {
 	Host string
 	Port int
+}
+
+// RedisCfg redis config
+type RedisCfg struct {
+	Addr string
+	Auth string
 }
 
 // GetServiceCfg returns the configurations for the service
