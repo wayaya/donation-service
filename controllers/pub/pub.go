@@ -618,8 +618,11 @@ func (h *RestHandler) ReceiveSupplies(c *gin.Context) {
 		"tx_id": "kandkalakna9ejdlalajahbabzgzfaftqub",
 		"time": 1584932344
 	}*/
-
-	c.JSON(http.StatusOK, rest.SuccessResponse(nil))
+	supllyIds := make([]string, 0)
+	for _, v := range ps {
+		supllyIds = append(supllyIds, v.ID)
+	}
+	c.JSON(http.StatusOK, rest.SuccessResponse(supllyIds))
 	wlog.Debug("完成上链")
 	logger.Infof("response receive funds success.")
 }
